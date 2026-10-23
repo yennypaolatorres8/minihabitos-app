@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración | MiniHábitos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,700;0,900;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #F7F3ED;
+      --card-bg: #FFFFFF;
+      --navy: #3D2657;
+      --navy-dark: #2A183D;
+      --navy-light: #523473;
+      --gold: #E8B23D;
+      --gold-dark: #C6820C;
+      --gold-light: #FDF4E3;
+      --text-main: #231F20;
+      --text-muted: #6B686B;
+      --border: #E8E2D8;
+      --border-focus: #C6820C;
+      --danger: #D9383A;
+      --success: #2E7D32;
+      --success-light: #E8F5E9;
+      --radius: 14px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 20px rgba(61, 38, 87, 0.06);
+      --shadow-lg: 0 12px 36px rgba(61, 38, 87, 0.12);
+      --transition: all 0.22s ease-in-out;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Fraunces', serif;
+      color: var(--navy);
+    }
+
+    /* ==========================================================
+       LOGIN OVERLAY
+       ========================================================== */
+    #login-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(42, 24, 61, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    #login-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .login-card {
+      background: var(--card-bg);
+      width: 100%;
+      max-width: 440px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: 36px 32px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .login-badge {
+      width: 58px;
+      height: 58px;
+      background: var(--navy);
+      color: var(--gold);
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 18px;
+      box-shadow: 0 6px 16px rgba(61, 38, 87, 0.25);
+    }
+
+    .login-card h2 {
+      font-size: 1.7rem;
+      margin-bottom: 8px;
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      text-align: left;
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--navy);
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      font-family: inherit;
+      transition: var(--transition);
+    }
+
+    .form-group input:focus {
+      border-color: var(--navy);
+      box-shadow: 0 0 0 3px rgba(61, 38, 87, 0.12);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      transition: var(--transition);
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--navy);
+      color: #FFF;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background: var(--navy-dark);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #FFF;
+      color: var(--navy);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #FAF7F2;
+      border-color: var(--navy);
+    }
+
+    .btn-accent {
+      background: var(--gold-dark);
+      color: #FFF;
+    }
+
+    .btn-accent:hover {
+      background: #9E6506;
+    }
+
+    .btn-sm {
+      padding: 7px 12px;
+      font-size: 0.85rem;
+    }
+
+    .login-error {
+      color: var(--danger);
+      font-size: 0.85rem;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .login-error.visible {
+      display: block;
+    }
+
+    .login-hint {
+      margin-top: 14px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: var(--gold-light);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border-left: 3px solid var(--gold-dark);
+      text-align: left;
+    }
+
+    /* ==========================================================
+       MAIN APP / HEADER
+       ========================================================== */
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    .header-content {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: var(--navy);
+      color: var(--gold);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .brand-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ==========================================================
+       LAYOUT / DASHBOARD
+       ========================================================== */
+    main {
+      flex: 1;
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 60px;
+    }
+
+    /* METRICS GRID */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 22px 20px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--navy);
+    }
+
+    .metric-card.accent::before {
+      background: var(--gold);
+    }
+
+    .metric-card.success::before {
+      background: var(--success);
+    }
+
+    .metric-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(61, 38, 87, 0.07);
+      color: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .metric-card.accent .metric-icon {
+      background: rgba(232, 178, 61, 0.2);
+      color: var(--gold-dark);
+    }
+
+    .metric-card.success .metric-icon {
+      background: rgba(46, 125, 50, 0.12);
+      color: var(--success);
+    }
+
+    .metric-label {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .metric-value {
+      font-family: 'Fraunces', serif;
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.1;
+    }
+
+    /* TABS & CONTROLS */
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tabs {
+      display: flex;
+      background: #EAE3D5;
+      padding: 4px;
+      border-radius: 10px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 9px 18px;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--navy);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn.active {
+      background: var(--card-bg);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      color: var(--navy-dark);
+    }
+
+    .tab-badge {
+      background: var(--navy);
+      color: #FFF;
+      font-size: 0.72rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    .filter-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      padding: 9px 14px;
+      font-size: 0.9rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      background: #FFF;
+      min-width: 240px;
+      font-family: inherit;
+    }
+
+    .search-input:focus {
+      border-color: var(--navy);
+    }
+
+    .select-input {
+      padding: 9px 14px;
+      font-size: 0.9rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      background: #FFF;
+      font-family: inherit;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    /* CONTENT SECTIONS */
+    .section-panel {
+      display: none;
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-panel.active {
+      display: block;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.92rem;
+    }
+
+    thead th {
+      background: #FAF7F2;
+      color: var(--navy);
+      font-weight: 700;
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--border);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background-color 0.15s ease;
+    }
+
+    tbody tr:hover {
+      background-color: #FDFBF8;
+    }
+
+    tbody td {
+      padding: 14px 18px;
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-section {
+      background: rgba(61, 38, 87, 0.08);
+      color: var(--navy);
+    }
+
+    .badge-score {
+      background: var(--gold-light);
+      color: var(--gold-dark);
+      font-weight: 700;
+    }
+
+    .badge-user {
+      font-weight: 600;
+      color: var(--navy);
+    }
+
+    .user-email {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .date-col {
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      white-space: nowrap;
+    }
+
+    .text-truncate {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 42px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .empty-state h3 {
+      font-size: 1.2rem;
+      margin-bottom: 6px;
+      color: var(--navy);
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--navy);
+      color: #FFF;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 0.92rem;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(120px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toast.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      background: var(--success);
+    }
+
+    .toast.error {
+      background: var(--danger);
+    }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      background: var(--card-bg);
+      margin-top: auto;
+    }
+
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .filter-actions {
+        width: 100%;
+      }
+      .search-input {
+        width: 100%;
+        min-width: unset;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================
+       LOGIN MODAL
+       ========================================================== -->
+  <div id="login-overlay">
+    <div class="login-card">
+      <div class="login-badge">🌱</div>
+      <h2>Panel Administrador</h2>
+      <p>Acceso seguro para monitoreo de resultados de MiniHábitos</p>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="admin-pin">Contraseña de Administrador</label>
+          <input type="password" id="admin-pin" placeholder="Ingresa la contraseña" required autofocus autocomplete="current-password">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 22px;">
+          <label for="service-key" style="display:flex; justify-content:space-between;">
+            <span>Clave Supabase (Opcional)</span>
+            <small style="text-transform:none; font-weight:normal; color:var(--text-muted);">Si activaste RLS estricto</small>
+          </label>
+          <input type="password" id="service-key" placeholder="service_role o dejar en blanco si usas anon key">
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="login-submit-btn">
+          Ingresar al Panel
+        </button>
+
+        <p class="login-error" id="login-error-msg">Contraseña incorrecta. Intenta nuevamente.</p>
+
+        <div class="login-hint">
+          💡 <strong>Acceso inicial:</strong> La contraseña por defecto es <code>admin123</code> (puedes cambiarla en cualquier momento).
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       TOP NAVIGATION
+       ========================================================== -->
+  <header>
+    <div class="header-content">
+      <div class="brand">
+        <div class="brand-logo">🌱</div>
+        <div>
+          <div class="brand-title">MiniHábitos — Dashboard</div>
+          <div class="brand-subtitle">Pensamiento Estratégico · Seguimiento en Vivo</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="cargarTodo()" title="Refrescar datos">
+          🔄 Actualizar
+        </button>
+        <button class="btn btn-accent btn-sm" onclick="exportarCSV()">
+          📥 Exportar CSV
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="cerrarSesion()">
+          🚪 Salir
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================
+       MAIN CONTENT
+       ========================================================== -->
+  <main>
+    <!-- RESUMEN EN TARJETAS -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon">👥</div>
+        <div>
+          <div class="metric-label">Participantes Registrados</div>
+          <div class="metric-value" id="metric-usuarios">0</div>
+        </div>
+      </div>
+
+      <div class="metric-card accent">
+        <div class="metric-icon">🎯</div>
+        <div>
+          <div class="metric-label">Actividades Realizadas</div>
+          <div class="metric-value" id="metric-actividades">0</div>
+        </div>
+      </div>
+
+      <div class="metric-card success">
+        <div class="metric-icon">⭐</div>
+        <div>
+          <div class="metric-label">Puntaje Total Acumulado</div>
+          <div class="metric-value" id="metric-puntaje">0 pts</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon">🕒</div>
+        <div>
+          <div class="metric-label">Último Registro</div>
+          <div class="metric-value" style="font-size: 1.25rem;" id="metric-ultimo">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS Y FILTROS -->
+    <div class="controls-bar">
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-btn-actividades" onclick="cambiarTab('actividades')">
+          🎯 Actividades Realizadas <span class="tab-badge" id="badge-count-actividades">0</span>
+        </button>
+        <button class="tab-btn" id="tab-btn-usuarios" onclick="cambiarTab('usuarios')">
+          👥 Participantes <span class="tab-badge" id="badge-count-usuarios">0</span>
+        </button>
+      </div>
+
+      <div class="filter-actions">
+        <input type="text" id="busqueda-input" class="search-input" placeholder="🔍 Buscar por usuario, correo o actividad..." oninput="filtrarDatos()">
+        
+        <select id="seccion-filter" class="select-input" onchange="filtrarDatos()">
+          <option value="todas">Todas las Secciones</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- TAB PANEL 1: RESULTADOS DE ACTIVIDADES -->
+    <div class="section-panel active" id="panel-actividades">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Participante</th>
+              <th>Sección</th>
+              <th>Actividad</th>
+              <th>Respuesta</th>
+              <th>Puntaje</th>
+              <th>Fecha y Hora</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-actividades">
+            <tr>
+              <td colspan="6" class="empty-state">
+                <span class="empty-icon">⏳</span>
+                <h3>Cargando actividades...</h3>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB PANEL 2: USUARIOS REGISTRADOS -->
+    <div class="section-panel" id="panel-usuarios">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Correo Institucional / Personal</th>
+              <th>Actividades Completadas</th>
+              <th>Puntos Logrados</th>
+              <th>Fecha de Registro</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-usuarios">
+            <tr>
+              <td colspan="5" class="empty-state">
+                <span class="empty-icon">⏳</span>
+                <h3>Cargando usuarios...</h3>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- TOAST FEEDBACK -->
+  <div id="toast" class="toast">Mensaje de notificación</div>
+
+  <!-- FOOTER -->
+  <footer>
+    Proyecto MiniHábitos · Especialización en Gerencia de Empresas · Pensamiento Estratégico
+  </footer>
+
+  <!-- ==========================================================
+       JAVASCRIPT LOGIC
+       ========================================================== -->
+  <script>
+    // Configuración base de Supabase (la misma de minihabitos.html)
+    const SUPABASE_URL = 'https://qupboqlryzmhvxjjqnqe.supabase.co';
+    const SUPABASE_DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1cGJvcWxyeXptaHZ4ampxbnFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2ODk5MDMsImV4cCI6MjEwODI2NTkwM30.s_1mao9mFy7rj2yTt2GRUR10pFCUsjf491lT2E6GnVc';
+
+    // Contraseña de acceso por defecto (puedes cambiarla en localStorage 'mh_admin_pin')
+    const ADMIN_DEFAULT_PIN = 'admin123';
+
+    let supabaseClient = null;
+    let rawActividades = [];
+    let rawUsuarios = [];
+    let tabActual = 'actividades';
+
+    // --- AUTENTICACIÓN LOCAL DE PANEL ADMIN ---
+    function checkAuth() {
+      const isAuth = sessionStorage.getItem('mh_admin_auth') === '1';
+      const overlay = document.getElementById('login-overlay');
+      if (isAuth) {
+        overlay.classList.add('hidden');
+        inicializarSupabase();
+      } else {
+        overlay.classList.remove('hidden');
+      }
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const pinIngresado = document.getElementById('admin-pin').value.trim();
+      const customKey = document.getElementById('service-key').value.trim();
+      const errorMsg = document.getElementById('login-error-msg');
+
+      const pinValido = localStorage.getItem('mh_admin_pin') || ADMIN_DEFAULT_PIN;
+
+      if (pinIngresado === pinValido) {
+        sessionStorage.setItem('mh_admin_auth', '1');
+        if (customKey) {
+          sessionStorage.setItem('mh_supabase_custom_key', customKey);
+        }
+        errorMsg.classList.remove('visible');
+        document.getElementById('login-overlay').classList.add('hidden');
+        mostrarToast('¡Bienvenido al Panel Administrador!', 'success');
+        inicializarSupabase();
+      } else {
+        errorMsg.classList.add('visible');
+        document.getElementById('admin-pin').focus();
+      }
+    }
+
+    function cerrarSesion() {
+      if (confirm('¿Deseas cerrar la sesión de administración?')) {
+        sessionStorage.removeItem('mh_admin_auth');
+        sessionStorage.removeItem('mh_supabase_custom_key');
+        window.location.reload();
+      }
+    }
+
+    function inicializarSupabase() {
+      const customKey = sessionStorage.getItem('mh_supabase_custom_key');
+      const apiKey = customKey || SUPABASE_DEFAULT_ANON_KEY;
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, apiKey);
+      cargarTodo();
+    }
+
+    // --- CARGA DE DATOS DESDE SUPABASE ---
+    async function cargarTodo() {
+      mostrarToast('Actualizando datos desde Supabase...', '');
+      await Promise.all([cargarUsuarios(), cargarActividades()]);
+      actualizarMetricas();
+      poblarFiltroSecciones();
+      renderizarTablas();
+      mostrarToast('Datos sincronizados correctamente', 'success');
+    }
+
+    async function cargarUsuarios() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('registros')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn('Error al cargar usuarios:', error);
+          if (error.code === '42501' || error.message.includes('permission')) {
+            mostrarToast('Nota: RLS activo en Supabase. Si la tabla está vacía, añade clave o revisa las políticas.', 'error');
+          }
+          rawUsuarios = [];
+        } else {
+          rawUsuarios = data || [];
+        }
+      } catch (err) {
+        console.error('Error de red al consultar registros:', err);
+        rawUsuarios = [];
+      }
+    }
+
+    async function cargarActividades() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('resultados_actividades')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn('Error al cargar actividades:', error);
+          rawActividades = [];
+        } else {
+          rawActividades = data || [];
+        }
+      } catch (err) {
+        console.error('Error de red al consultar actividades:', err);
+        rawActividades = [];
+      }
+    }
+
+    // --- RESUMEN Y MÉTRICAS ---
+    function actualizarMetricas() {
+      // 1. Usuarios
+      document.getElementById('metric-usuarios').textContent = rawUsuarios.length;
+      document.getElementById('badge-count-usuarios').textContent = rawUsuarios.length;
+
+      // 2. Actividades
+      document.getElementById('metric-actividades').textContent = rawActividades.length;
+      document.getElementById('badge-count-actividades').textContent = rawActividades.length;
+
+      // 3. Puntaje acumulado
+      const puntajeTotal = rawActividades.reduce((acc, curr) => acc + (parseInt(curr.puntaje) || 0), 0);
+      document.getElementById('metric-puntaje').textContent = `${puntajeTotal} pts`;
+
+      // 4. Último registro
+      if (rawActividades.length > 0 && rawActividades[0].created_at) {
+        const fecha = new Date(rawActividades[0].created_at);
+        document.getElementById('metric-ultimo').textContent = formatearFechaCorta(fecha);
+      } else if (rawUsuarios.length > 0 && rawUsuarios[0].created_at) {
+        const fecha = new Date(rawUsuarios[0].created_at);
+        document.getElementById('metric-ultimo').textContent = formatearFechaCorta(fecha);
+      } else {
+        document.getElementById('metric-ultimo').textContent = '—';
+      }
+    }
+
+    function poblarFiltroSecciones() {
+      const select = document.getElementById('seccion-filter');
+      const actualVal = select.value;
+      const secciones = new Set();
+      rawActividades.forEach(a => {
+        if (a.seccion) secciones.add(a.seccion);
+      });
+
+      select.innerHTML = '<option value="todas">Todas las Secciones</option>';
+      secciones.forEach(sec => {
+        const opt = document.createElement('option');
+        opt.value = sec;
+        opt.textContent = sec;
+        select.appendChild(opt);
+      });
+      if (secciones.has(actualVal)) {
+        select.value = actualVal;
+      }
+    }
+
+    // --- RENDERIZADO DE TABLAS ---
+    function renderizarTablas() {
+      const busqueda = (document.getElementById('busqueda-input').value || '').toLowerCase();
+      const seccionFiltro = document.getElementById('seccion-filter').value;
+
+      // 1. Filtrar Actividades
+      const actividadesFiltradas = rawActividades.filter(act => {
+        const matchSec = seccionFiltro === 'todas' || act.seccion === seccionFiltro;
+        const texto = `${act.nombre_usuario || ''} ${act.correo_usuario || ''} ${act.actividad || ''} ${act.respuesta || ''} ${act.seccion || ''}`.toLowerCase();
+        const matchBusqueda = !busqueda || texto.includes(busqueda);
+        return matchSec && matchBusqueda;
+      });
+
+      const tbodyActividades = document.getElementById('tbody-actividades');
+      if (actividadesFiltradas.length === 0) {
+        tbodyActividades.innerHTML = `
+          <tr>
+            <td colspan="6" class="empty-state">
+              <span class="empty-icon">📂</span>
+              <h3>No hay actividades para mostrar</h3>
+              <p>Aún no se han registrado respuestas con los filtros actuales.</p>
+            </td>
+          </tr>
+        `;
+      } else {
+        tbodyActividades.innerHTML = actividadesFiltradas.map(a => `
+          <tr>
+            <td>
+              <div class="badge-user">${escaparHTML(a.nombre_usuario || 'Anónimo')}</div>
+              <div class="user-email">${escaparHTML(a.correo_usuario || '—')}</div>
+            </td>
+            <td><span class="badge badge-section">${escaparHTML(a.seccion || 'General')}</span></td>
+            <td><strong>${escaparHTML(a.actividad || 'Actividad')}</strong></td>
+            <td><div class="text-truncate" title="${escaparHTML(a.respuesta || '')}">${escaparHTML(a.respuesta || '—')}</div></td>
+            <td><span class="badge badge-score">+${a.puntaje || 0} pts</span></td>
+            <td class="date-col">${formatearFecha(a.created_at)}</td>
+          </tr>
+        `).join('');
+      }
+
+      // 2. Filtrar Usuarios
+      const usuariosFiltrados = rawUsuarios.filter(u => {
+        const texto = `${u.nombre || ''} ${u.correo || ''}`.toLowerCase();
+        return !busqueda || texto.includes(busqueda);
+      });
+
+      const tbodyUsuarios = document.getElementById('tbody-usuarios');
+      if (usuariosFiltrados.length === 0) {
+        tbodyUsuarios.innerHTML = `
+          <tr>
+            <td colspan="5" class="empty-state">
+              <span class="empty-icon">👥</span>
+              <h3>No hay usuarios registrados</h3>
+              <p>Las personas que ingresen sus datos en la app aparecerán aquí.</p>
+            </td>
+          </tr>
+        `;
+      } else {
+        tbodyUsuarios.innerHTML = usuariosFiltrados.map(u => {
+          const userActs = rawActividades.filter(a => a.correo_usuario === u.correo);
+          const userScore = userActs.reduce((acc, curr) => acc + (parseInt(curr.puntaje) || 0), 0);
+          return `
+            <tr>
+              <td><strong class="badge-user">${escaparHTML(u.nombre || 'Sin nombre')}</strong></td>
+              <td>${escaparHTML(u.correo || '—')}</td>
+              <td><span class="badge badge-section">${userActs.length} actividad(es)</span></td>
+              <td><span class="badge badge-score">${userScore} pts</span></td>
+              <td class="date-col">${formatearFecha(u.created_at)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    function filtrarDatos() {
+      renderizarTablas();
+    }
+
+    function cambiarTab(tab) {
+      tabActual = tab;
+      document.getElementById('tab-btn-actividades').classList.toggle('active', tab === 'actividades');
+      document.getElementById('tab-btn-usuarios').classList.toggle('active', tab === 'usuarios');
+      document.getElementById('panel-actividades').classList.toggle('active', tab === 'actividades');
+      document.getElementById('panel-usuarios').classList.toggle('active', tab === 'usuarios');
+    }
+
+    // --- EXPORTAR A CSV ---
+    function exportarCSV() {
+      if (tabActual === 'actividades') {
+        if (rawActividades.length === 0) return alert('No hay datos de actividades para exportar.');
+        const encabezados = ['ID', 'Nombre Usuario', 'Correo Usuario', 'Seccion', 'Actividad', 'Respuesta', 'Puntaje', 'Fecha'];
+        const filas = rawActividades.map(a => [
+          a.id || '',
+          `"${(a.nombre_usuario || '').replace(/"/g, '""')}"`,
+          `"${(a.correo_usuario || '').replace(/"/g, '""')}"`,
+          `"${(a.seccion || '').replace(/"/g, '""')}"`,
+          `"${(a.actividad || '').replace(/"/g, '""')}"`,
+          `"${(a.respuesta || '').replace(/"/g, '""')}"`,
+          a.puntaje || 0,
+          a.created_at || ''
+        ]);
+        descargarArchivoCSV([encabezados, ...filas], `minihabitos_actividades_${new Date().toISOString().slice(0,10)}.csv`);
+      } else {
+        if (rawUsuarios.length === 0) return alert('No hay usuarios para exportar.');
+        const encabezados = ['ID', 'Nombre', 'Correo', 'Fecha Registro'];
+        const filas = rawUsuarios.map(u => [
+          u.id || '',
+          `"${(u.nombre || '').replace(/"/g, '""')}"`,
+          `"${(u.correo || '').replace(/"/g, '""')}"`,
+          u.created_at || ''
+        ]);
+        descargarArchivoCSV([encabezados, ...filas], `minihabitos_usuarios_${new Date().toISOString().slice(0,10)}.csv`);
+      }
+    }
+
+    function descargarArchivoCSV(matriz, nombreArchivo) {
+      const contenidoCSV = '\uFEFF' + matriz.map(e => e.join(';')).join('\n');
+      const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', nombreArchivo);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      mostrarToast(`Descarga completada: ${nombreArchivo}`, 'success');
+    }
+
+    // --- UTILIDADES ---
+    function formatearFecha(isoString) {
+      if (!isoString) return '—';
+      const d = new Date(isoString);
+      return d.toLocaleDateString('es-CO', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function formatearFechaCorta(d) {
+      const ahora = new Date();
+      const diffMin = Math.floor((ahora - d) / 60000);
+      if (diffMin < 1) return 'Hace un instante';
+      if (diffMin < 60) return `Hace ${diffMin} min`;
+      const diffHoras = Math.floor(diffMin / 60);
+      if (diffHoras < 24) return `Hace ${diffHoras} h`;
+      return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+    }
+
+    function escaparHTML(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    let toastTimer = null;
+    function mostrarToast(mensaje, tipo = '') {
+      const t = document.getElementById('toast');
+      t.textContent = mensaje;
+      t.className = `toast visible ${tipo}`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        t.className = 'toast';
+      }, 3500);
+    }
+
+    // INICIAR AL CARGAR
+    document.addEventListener('DOMContentLoaded', checkAuth);
+  </script>
+</body>
+</html>
