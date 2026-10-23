@@ -888,6 +888,8 @@
       mostrarToast('Datos sincronizados correctamente', 'success');
     }
 
+    let supabaseErrorDetalle = null;
+
     async function cargarUsuarios() {
       try {
         const { data, error } = await supabaseClient
@@ -897,15 +899,14 @@
 
         if (error) {
           console.warn('Error al cargar usuarios:', error);
-          if (error.code === '42501' || error.message.includes('permission')) {
-            mostrarToast('Nota: RLS activo en Supabase. Si la tabla está vacía, añade clave o revisa las políticas.', 'error');
-          }
+          supabaseErrorDetalle = error.message;
           rawUsuarios = [];
         } else {
           rawUsuarios = data || [];
         }
       } catch (err) {
         console.error('Error de red al consultar registros:', err);
+        supabaseErrorDetalle = err.message || 'Error de conexión';
         rawUsuarios = [];
       }
     }
@@ -919,12 +920,14 @@
 
         if (error) {
           console.warn('Error al cargar actividades:', error);
+          if (!supabaseErrorDetalle) supabaseErrorDetalle = error.message;
           rawActividades = [];
         } else {
           rawActividades = data || [];
         }
       } catch (err) {
         console.error('Error de red al consultar actividades:', err);
+        if (!supabaseErrorDetalle) supabaseErrorDetalle = err.message || 'Error de conexión';
         rawActividades = [];
       }
     }
@@ -938,6 +941,22 @@
       // 2. Actividades
       document.getElementById('metric-actividades').textContent = rawActividades.length;
       document.getElementById('badge-count-actividades').textContent = rawActividades.length;
+
+      // 3. Puntaje acumulado
+      const puntajeTotal = rawActividades.reduce((acc, curr) => acc + (parseInt(curr.puntaje) || 0), 0);
+      document.getElementById('metric-puntaje').textContent = `${puntajeTotal} pts`;
+
+      // 4. Último registro
+      if (rawActividades.length > 0 && rawActividades[0].created_at) {
+        const fecha = new Date(rawActividades[0].created_at);
+        document.getElementById('metric-ultimo').textContent = formatearFechaCorta(fecha);
+      } else if (rawUsuarios.length > 0 && rawUsuarios[0].created_at) {
+        const fecha = new Date(rawUsuarios[0].created_at);
+        document.getElementById('metric-ultimo').textContent = formatearFechaCorta(fecha);
+      } else {
+        document.getElementById('metric-ultimo').textContent = '—';
+      }
+    }
 
       // 3. Puntaje acumulado
       const puntajeTotal = rawActividades.reduce((acc, curr) => acc + (parseInt(curr.puntaje) || 0), 0);
@@ -990,12 +1009,21 @@
 
       const tbodyActividades = document.getElementById('tbody-actividades');
       if (actividadesFiltradas.length === 0) {
+        const errorAviso = supabaseErrorDetalle ? `
+          <div style="background:#FFF3CD; border:1.5px solid #FFE69C; color:#856404; padding:12px 16px; border-radius:8px; margin-top:14px; font-size:0.88rem; max-width:600px; margin-left:auto; margin-right:auto; text-align:left;">
+            ⚠️ <strong>Aviso de Supabase:</strong> ${escaparHTML(supabaseErrorDetalle)}<br>
+            <span style="font-size:0.82rem; color:#6c5200; display:block; margin-top:4px;">
+              Revisa si ejecutaste el script SQL en Supabase para crear las tablas y desactivar RLS.
+            </span>
+          </div>` : '';
+
         tbodyActividades.innerHTML = `
           <tr>
             <td colspan="6" class="empty-state">
               <span class="empty-icon">📂</span>
               <h3>No hay actividades para mostrar</h3>
               <p>Aún no se han registrado respuestas con los filtros actuales.</p>
+              ${errorAviso}
             </td>
           </tr>
         `;
