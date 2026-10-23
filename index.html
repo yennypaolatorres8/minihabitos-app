@@ -2681,7 +2681,7 @@ document.addEventListener('DOMContentLoaded', init);
 })();
 
 function validarEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
 
 function registrarUsuario() {
@@ -2690,58 +2690,103 @@ function registrarUsuario() {
   const errorNombre = document.getElementById('error-nombre');
   const errorCorreo = document.getElementById('error-correo');
 
-  const nombre = nombreInput.value.trim();
-  const correo = correoInput.value.trim();
+  const nombre = (nombreInput ? nombreInput.value : '').trim();
+  const correo = (correoInput ? correoInput.value : '').trim();
   let valido = true;
 
   // Validar nombre
-  nombreInput.classList.remove('error');
-  errorNombre.classList.remove('visible');
+  if (nombreInput) nombreInput.classList.remove('error');
+  if (errorNombre) errorNombre.classList.remove('visible');
   if (!nombre) {
-    nombreInput.classList.add('error');
-    errorNombre.classList.add('visible');
+    if (nombreInput) nombreInput.classList.add('error');
+    if (errorNombre) errorNombre.classList.add('visible');
     valido = false;
   }
 
   // Validar correo
-  correoInput.classList.remove('error');
-  errorCorreo.classList.remove('visible');
+  if (correoInput) correoInput.classList.remove('error');
+  if (errorCorreo) errorCorreo.classList.remove('visible');
   if (!correo || !validarEmail(correo)) {
-    correoInput.classList.add('error');
-    errorCorreo.classList.add('visible');
+    if (correoInput) correoInput.classList.add('error');
+    if (errorCorreo) errorCorreo.classList.add('visible');
     valido = false;
   }
 
   if (!valido) return;
 
-  // Guardar datos del usuario actual en localStorage
-  localStorage.setItem('mh_usuario_nombre', nombre);
-  localStorage.setItem('mh_usuario_correo', correo);
+  // 1. Guardar de inmediato en storage local
+  try {
+    localStorage.setItem('mh_usuario_nombre', nombre);
+    localStorage.setItem('mh_usuario_correo', correo);
+    sessionStorage.setItem('mh_registrado', '1');
+  } catch (e) {
+    console.warn('Storage warning:', e);
+  }
 
-  // Marcar sesión como registrada
-  sessionStorage.setItem('mh_registrado', '1');
-
-  // --- Guardar en Supabase ---
-  guardarRegistroSupabase(nombre, correo);
-
-  // --- Ocultar overlay con animación ---
+  // 2. OCULTAR OVERLAY INMEDIATAMENTE
   const overlay = document.getElementById('registro-overlay');
-  overlay.classList.add('hidden');
+  if (overlay) {
+    overlay.classList.add('hidden');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      overlay.style.pointerEvents = 'none';
+    }, 600);
+  }
 
-  // Mensaje de bienvenida
-  setTimeout(() => showToast('¡Bienvenido/a, ' + nombre.split(' ')[0] + '! 🌱', 'celebrate'), 800);
+  // 3. Guardar en Supabase en segundo plano sin interrumpir la experiencia
+  try {
+    guardarRegistroSupabase(nombre, correo);
+  } catch (e) {
+    console.warn('Supabase registro warning:', e);
+  }
+
+  // 4. Saludo de bienvenida
+  try {
+    const primerNombre = nombre.split(' ')[0] || nombre;
+    setTimeout(() => showToast('¡Bienvenido/a, ' + primerNombre + '! 🌱', 'celebrate'), 400);
+  } catch (e) {}
 }
 
+// Soporte para presionar 'Enter' en los inputs del formulario
+document.addEventListener('DOMContentLoaded', () => {
+  const inputs = [document.getElementById('reg-nombre'), document.getElementById('reg-correo')];
+  inputs.forEach(input => {
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          registrarUsuario();
+        }
+      });
+    }
+  });
+});
+
 /* ============================
-   SUPABASE INTEGRATION
+   SUPABASE INTEGRATION (BLINDADA)
    ============================ */
 const SUPABASE_URL = 'https://qupboqlryzmhvxjjqnqe.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1cGJvcWxyeXptaHZ4ampxbnFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2ODk5MDMsImV4cCI6MjEwODI2NTkwM30.s_1mao9mFy7rj2yTt2GRUR10pFCUsjf491lT2E6GnVc';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let _supabaseClient = null;
+function getSupabaseClient() {
+  if (!_supabaseClient) {
+    try {
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch(err) {
+      console.warn('Supabase init warning:', err);
+    }
+  }
+  return _supabaseClient;
+}
 
 async function guardarRegistroSupabase(nombre, correo) {
   try {
-    const { error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return;
+    const { error } = await client
       .from('registros')
       .upsert(
         { nombre, correo },
@@ -2755,7 +2800,9 @@ async function guardarActividadSupabase(actividad, respuesta, seccion, puntaje) 
   const correo = localStorage.getItem('mh_usuario_correo') || 'anonimo';
   const nombre = localStorage.getItem('mh_usuario_nombre') || '';
   try {
-    const { error } = await supabase
+    const client = getSupabaseClient();
+    if (!client) return;
+    const { error } = await client
       .from('resultados_actividades')
       .insert([{ correo_usuario: correo, nombre_usuario: nombre, actividad, respuesta: String(respuesta), seccion, puntaje: puntaje || 0 }]);
     if (error) console.warn('Supabase actividad:', error.message);
