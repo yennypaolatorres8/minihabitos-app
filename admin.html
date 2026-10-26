@@ -1001,22 +1001,6 @@
       }
     }
 
-      // 3. Puntaje acumulado
-      const puntajeTotal = rawActividades.reduce((acc, curr) => acc + (parseInt(curr.puntaje) || 0), 0);
-      document.getElementById('metric-puntaje').textContent = `${puntajeTotal} pts`;
-
-      // 4. Último registro
-      if (rawActividades.length > 0 && rawActividades[0].created_at) {
-        const fecha = new Date(rawActividades[0].created_at);
-        document.getElementById('metric-ultimo').textContent = formatearFechaCorta(fecha);
-      } else if (rawUsuarios.length > 0 && rawUsuarios[0].created_at) {
-        const fecha = new Date(rawUsuarios[0].created_at);
-        document.getElementById('metric-ultimo').textContent = formatearFechaCorta(fecha);
-      } else {
-        document.getElementById('metric-ultimo').textContent = '—';
-      }
-    }
-
     function poblarFiltroSecciones() {
       const select = document.getElementById('seccion-filter');
       const actualVal = select.value;
