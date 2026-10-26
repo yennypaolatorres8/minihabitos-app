@@ -935,17 +935,23 @@
 
     async function cargarUsuarios() {
       try {
-        const { data, error } = await supabaseClient
+        let res = await supabaseClient
           .from('registros')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) {
-          console.warn('Error al cargar usuarios:', error);
-          supabaseErrorDetalle = error.message;
+        // Si falló por created_at, intentar sin ordenamiento
+        if (res.error && res.error.message && res.error.message.includes('created_at')) {
+          res = await supabaseClient.from('registros').select('*');
+        }
+
+        if (res.error) {
+          console.warn('Error al cargar usuarios:', res.error);
+          supabaseErrorDetalle = res.error.message;
           rawUsuarios = [];
         } else {
-          rawUsuarios = data || [];
+          rawUsuarios = res.data || [];
+          supabaseErrorDetalle = null;
         }
       } catch (err) {
         console.error('Error de red al consultar registros:', err);
@@ -956,17 +962,23 @@
 
     async function cargarActividades() {
       try {
-        const { data, error } = await supabaseClient
+        let res = await supabaseClient
           .from('resultados_actividades')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) {
-          console.warn('Error al cargar actividades:', error);
-          if (!supabaseErrorDetalle) supabaseErrorDetalle = error.message;
+        // Si falló por created_at, intentar sin ordenamiento
+        if (res.error && res.error.message && res.error.message.includes('created_at')) {
+          res = await supabaseClient.from('resultados_actividades').select('*');
+        }
+
+        if (res.error) {
+          console.warn('Error al cargar actividades:', res.error);
+          if (!supabaseErrorDetalle) supabaseErrorDetalle = res.error.message;
           rawActividades = [];
         } else {
-          rawActividades = data || [];
+          rawActividades = res.data || [];
+          supabaseErrorDetalle = null;
         }
       } catch (err) {
         console.error('Error de red al consultar actividades:', err);
