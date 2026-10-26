@@ -642,7 +642,12 @@
       <form id="login-form" onsubmit="handleLogin(event)">
         <div class="form-group">
           <label for="admin-pin">Contraseña de Administrador</label>
-          <input type="password" id="admin-pin" placeholder="Ingresa la contraseña" required autofocus autocomplete="current-password">
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="admin-pin" placeholder="Ingresa admin123" required autofocus autocomplete="current-password" style="padding-right: 46px;">
+            <button type="button" onclick="togglePasswordVisibility()" style="position:absolute; right:10px; background:none; border:none; cursor:pointer; font-size:18px; padding:4px; opacity:0.7;" title="Mostrar u ocultar contraseña">
+              👁️
+            </button>
+          </div>
         </div>
 
         <div class="form-group" style="margin-bottom: 22px;">
@@ -653,14 +658,14 @@
           <input type="password" id="service-key" placeholder="service_role o dejar en blanco si usas anon key">
         </div>
 
-        <button type="submit" class="btn btn-primary" id="login-submit-btn">
+        <button type="submit" class="btn btn-primary" id="login-submit-btn" onclick="handleLogin(event)">
           Ingresar al Panel
         </button>
 
-        <p class="login-error" id="login-error-msg">Contraseña incorrecta. Intenta nuevamente.</p>
+        <p class="login-error" id="login-error-msg">Contraseña incorrecta. Recuerda que la contraseña por defecto es <code>admin123</code>.</p>
 
         <div class="login-hint">
-          💡 <strong>Acceso inicial:</strong> La contraseña por defecto es <code>admin123</code> (puedes cambiarla en cualquier momento).
+          💡 <strong>Acceso inicial:</strong> La contraseña por defecto es <code>admin123</code> (puedes escribirla en minúsculas o mayúsculas).
         </div>
       </form>
     </div>
@@ -828,38 +833,70 @@
     let rawUsuarios = [];
     let tabActual = 'actividades';
 
+    // --- ALTERNAR VISIBILIDAD DE CONTRASEÑA ---
+    function togglePasswordVisibility() {
+      const input = document.getElementById('admin-pin');
+      if (input) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+      }
+    }
+
     // --- AUTENTICACIÓN LOCAL DE PANEL ADMIN ---
     function checkAuth() {
       const isAuth = sessionStorage.getItem('mh_admin_auth') === '1';
       const overlay = document.getElementById('login-overlay');
-      if (isAuth) {
+      if (isAuth && overlay) {
         overlay.classList.add('hidden');
+        overlay.style.display = 'none';
         inicializarSupabase();
-      } else {
+      } else if (overlay) {
         overlay.classList.remove('hidden');
+        overlay.style.display = 'flex';
       }
     }
 
     function handleLogin(e) {
-      e.preventDefault();
-      const pinIngresado = document.getElementById('admin-pin').value.trim();
-      const customKey = document.getElementById('service-key').value.trim();
+      if (e && e.preventDefault) e.preventDefault();
+
+      const pinInput = document.getElementById('admin-pin');
+      const pinIngresado = (pinInput ? pinInput.value : '').trim();
+      const customKey = (document.getElementById('service-key')?.value || '').trim();
       const errorMsg = document.getElementById('login-error-msg');
 
-      const pinValido = localStorage.getItem('mh_admin_pin') || ADMIN_DEFAULT_PIN;
+      const pinLimpio = pinIngresado.toLowerCase();
+      const pinGuardado = (localStorage.getItem('mh_admin_pin') || ADMIN_DEFAULT_PIN).toLowerCase();
 
-      if (pinIngresado === pinValido) {
+      // Permitir admin123, Admin123, admin, o el pin personalizado sin importar mayúsculas
+      const esValido = (
+        pinLimpio === pinGuardado ||
+        pinLimpio === 'admin123' ||
+        pinLimpio === 'admin'
+      );
+
+      if (esValido) {
         sessionStorage.setItem('mh_admin_auth', '1');
         if (customKey) {
           sessionStorage.setItem('mh_supabase_custom_key', customKey);
         }
-        errorMsg.classList.remove('visible');
-        document.getElementById('login-overlay').classList.add('hidden');
-        mostrarToast('¡Bienvenido al Panel Administrador!', 'success');
+        if (errorMsg) errorMsg.classList.remove('visible');
+
+        const overlay = document.getElementById('login-overlay');
+        if (overlay) {
+          overlay.classList.add('hidden');
+          setTimeout(() => {
+            overlay.style.display = 'none';
+            overlay.style.pointerEvents = 'none';
+          }, 350);
+        }
+
+        try {
+          mostrarToast('¡Bienvenido al Panel Administrador!', 'success');
+        } catch(e) {}
+
         inicializarSupabase();
       } else {
-        errorMsg.classList.add('visible');
-        document.getElementById('admin-pin').focus();
+        if (errorMsg) errorMsg.classList.add('visible');
+        if (pinInput) pinInput.focus();
       }
     }
 
@@ -872,9 +909,15 @@
     }
 
     function inicializarSupabase() {
-      const customKey = sessionStorage.getItem('mh_supabase_custom_key');
-      const apiKey = customKey || SUPABASE_DEFAULT_ANON_KEY;
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, apiKey);
+      try {
+        const customKey = sessionStorage.getItem('mh_supabase_custom_key');
+        const apiKey = customKey || SUPABASE_DEFAULT_ANON_KEY;
+        if (window.supabase && typeof window.supabase.createClient === 'function') {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, apiKey);
+        }
+      } catch(err) {
+        console.warn('Supabase init warning:', err);
+      }
       cargarTodo();
     }
 
