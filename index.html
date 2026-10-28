@@ -1587,7 +1587,7 @@ footer {
     <p class="registro-subtitle">Antes de comenzar, cuéntanos quién eres.<br>Tus datos se guardan de forma segura.</p>
 
     <div class="registro-field">
-      <label for="reg-nombre">Tu nombre completo</label>
+      <label for="reg-nombre">Nombre</label>
       <input
         type="text"
         id="reg-nombre"
@@ -1599,15 +1599,16 @@ footer {
     </div>
 
     <div class="registro-field">
-      <label for="reg-correo">Correo electrónico</label>
+      <label for="reg-documento">Número de documento</label>
       <input
-        type="email"
-        id="reg-correo"
-        placeholder="ej: maria@urosario.edu.co"
-        autocomplete="email"
-        maxlength="200"
+        type="text"
+        inputmode="numeric"
+        id="reg-documento"
+        placeholder="ej: 1020304050"
+        autocomplete="off"
+        maxlength="30"
       >
-      <div class="registro-error-msg" id="error-correo">Ingresa un correo válido.</div>
+      <div class="registro-error-msg" id="error-documento">Por favor ingresa un número de documento válido.</div>
     </div>
 
     <button class="btn-iniciar" id="btn-iniciar" onclick="registrarUsuario()">
@@ -2674,24 +2675,30 @@ document.addEventListener('DOMContentLoaded', init);
     if (!overlay) return;
     if (yaRegistrado()) {
       overlay.classList.add('hidden');
+    } else {
+      const nom = localStorage.getItem('mh_usuario_nombre');
+      const doc = localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo');
+      if (nom && document.getElementById('reg-nombre')) document.getElementById('reg-nombre').value = nom;
+      if (doc && document.getElementById('reg-documento')) document.getElementById('reg-documento').value = doc;
     }
   }
 
   document.addEventListener('DOMContentLoaded', mostrarOverlay);
 })();
 
-function validarEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
+function validarDocumento(doc) {
+  const limpio = String(doc).trim().replace(/[\s.-]/g, '');
+  return /^[a-zA-Z0-9]{4,25}$/.test(limpio);
 }
 
 function registrarUsuario() {
   const nombreInput = document.getElementById('reg-nombre');
-  const correoInput = document.getElementById('reg-correo');
+  const docInput = document.getElementById('reg-documento');
   const errorNombre = document.getElementById('error-nombre');
-  const errorCorreo = document.getElementById('error-correo');
+  const errorDocumento = document.getElementById('error-documento');
 
   const nombre = (nombreInput ? nombreInput.value : '').trim();
-  const correo = (correoInput ? correoInput.value : '').trim();
+  const documento = (docInput ? docInput.value : '').trim();
   let valido = true;
 
   // Validar nombre
@@ -2703,12 +2710,12 @@ function registrarUsuario() {
     valido = false;
   }
 
-  // Validar correo
-  if (correoInput) correoInput.classList.remove('error');
-  if (errorCorreo) errorCorreo.classList.remove('visible');
-  if (!correo || !validarEmail(correo)) {
-    if (correoInput) correoInput.classList.add('error');
-    if (errorCorreo) errorCorreo.classList.add('visible');
+  // Validar documento
+  if (docInput) docInput.classList.remove('error');
+  if (errorDocumento) errorDocumento.classList.remove('visible');
+  if (!documento || !validarDocumento(documento)) {
+    if (docInput) docInput.classList.add('error');
+    if (errorDocumento) errorDocumento.classList.add('visible');
     valido = false;
   }
 
@@ -2717,7 +2724,8 @@ function registrarUsuario() {
   // 1. Guardar de inmediato en storage local
   try {
     localStorage.setItem('mh_usuario_nombre', nombre);
-    localStorage.setItem('mh_usuario_correo', correo);
+    localStorage.setItem('mh_usuario_documento', documento);
+    localStorage.setItem('mh_usuario_correo', documento);
     sessionStorage.setItem('mh_registrado', '1');
   } catch (e) {
     console.warn('Storage warning:', e);
@@ -2735,7 +2743,7 @@ function registrarUsuario() {
 
   // 3. Guardar en Supabase en segundo plano sin interrumpir la experiencia
   try {
-    guardarRegistroSupabase(nombre, correo);
+    guardarRegistroSupabase(nombre, documento);
   } catch (e) {
     console.warn('Supabase registro warning:', e);
   }
@@ -2749,7 +2757,7 @@ function registrarUsuario() {
 
 // Soporte para presionar 'Enter' en los inputs del formulario
 document.addEventListener('DOMContentLoaded', () => {
-  const inputs = [document.getElementById('reg-nombre'), document.getElementById('reg-correo')];
+  const inputs = [document.getElementById('reg-nombre'), document.getElementById('reg-documento')];
   inputs.forEach(input => {
     if (input) {
       input.addEventListener('keydown', (e) => {
@@ -2782,14 +2790,14 @@ function getSupabaseClient() {
   return _supabaseClient;
 }
 
-async function guardarRegistroSupabase(nombre, correo) {
+async function guardarRegistroSupabase(nombre, documento) {
   try {
     const client = getSupabaseClient();
     if (!client) return;
     const { error } = await client
       .from('registros')
       .upsert(
-        { nombre, correo },
+        { nombre, correo: documento },
         { onConflict: 'correo', ignoreDuplicates: true }
       );
     if (error) console.warn('Supabase registro:', error.message);
@@ -2797,14 +2805,14 @@ async function guardarRegistroSupabase(nombre, correo) {
 }
 
 async function guardarActividadSupabase(actividad, respuesta, seccion, puntaje) {
-  const correo = localStorage.getItem('mh_usuario_correo') || 'anonimo';
+  const usuario = localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo') || 'anonimo';
   const nombre = localStorage.getItem('mh_usuario_nombre') || '';
   try {
     const client = getSupabaseClient();
     if (!client) return;
     const { error } = await client
       .from('resultados_actividades')
-      .insert([{ correo_usuario: correo, nombre_usuario: nombre, actividad, respuesta: String(respuesta), seccion, puntaje: puntaje || 0 }]);
+      .insert([{ correo_usuario: usuario, nombre_usuario: nombre, actividad, respuesta: String(respuesta), seccion, puntaje: puntaje || 0 }]);
     if (error) console.warn('Supabase actividad:', error.message);
   } catch(e) { console.warn('Supabase no disponible:', e); }
 }

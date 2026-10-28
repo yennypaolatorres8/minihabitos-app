@@ -749,7 +749,7 @@
       </div>
 
       <div class="filter-actions">
-        <input type="text" id="busqueda-input" class="search-input" placeholder="🔍 Buscar por usuario, correo o actividad..." oninput="filtrarDatos()">
+        <input type="text" id="busqueda-input" class="search-input" placeholder="🔍 Buscar por usuario, documento o actividad..." oninput="filtrarDatos()">
         
         <select id="seccion-filter" class="select-input" onchange="filtrarDatos()">
           <option value="todas">Todas las Secciones</option>
@@ -790,7 +790,7 @@
           <thead>
             <tr>
               <th>Nombre</th>
-              <th>Correo Institucional / Personal</th>
+              <th>Número de Documento</th>
               <th>Actividades Completadas</th>
               <th>Puntos Logrados</th>
               <th>Fecha de Registro</th>
@@ -1132,7 +1132,7 @@
     function exportarCSV() {
       if (tabActual === 'actividades') {
         if (rawActividades.length === 0) return alert('No hay datos de actividades para exportar.');
-        const encabezados = ['ID', 'Nombre Usuario', 'Correo Usuario', 'Seccion', 'Actividad', 'Respuesta', 'Puntaje', 'Fecha'];
+        const encabezados = ['ID', 'Nombre Usuario', 'Documento / Usuario', 'Seccion', 'Actividad', 'Respuesta', 'Puntaje', 'Fecha'];
         const filas = rawActividades.map(a => [
           a.id || '',
           `"${(a.nombre_usuario || '').replace(/"/g, '""')}"`,
@@ -1146,7 +1146,7 @@
         descargarArchivoCSV([encabezados, ...filas], `minihabitos_actividades_${new Date().toISOString().slice(0,10)}.csv`);
       } else {
         if (rawUsuarios.length === 0) return alert('No hay usuarios para exportar.');
-        const encabezados = ['ID', 'Nombre', 'Correo', 'Fecha Registro'];
+        const encabezados = ['ID', 'Nombre', 'Número de Documento', 'Fecha Registro'];
         const filas = rawUsuarios.map(u => [
           u.id || '',
           `"${(u.nombre || '').replace(/"/g, '""')}"`,
