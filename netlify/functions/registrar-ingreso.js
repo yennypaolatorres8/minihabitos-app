@@ -204,6 +204,25 @@ exports.handler = async (event, context) => {
             })
           };
         }
+
+        console.error('Error insertando en ingresos_diarios, intentando fallback en resultados_actividades:', errText);
+        // Intentar guardar en resultados_actividades como respaldo
+        await fetch(`${SUPABASE_URL}/rest/v1/resultados_actividades`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            correo_usuario: documento,
+            nombre_usuario: nombre,
+            actividad: 'ingreso_diario',
+            respuesta: fechaColombia,
+            seccion: 'ingreso',
+            puntaje: nuevaRacha
+          })
+        });
       }
     } else {
       // Inserción en resultados_actividades como respaldo

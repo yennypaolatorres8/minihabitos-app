@@ -2741,23 +2741,34 @@ function diferenciaDiasYYYYMMDD(f1, f2) {
     const overlay = document.getElementById('registro-overlay');
     if (!overlay) return;
 
-    const doc = localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo');
+    const doc = normalizarDocumento(localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo'));
     const nom = localStorage.getItem('mh_usuario_nombre');
     if (doc && document.getElementById('reg-documento')) document.getElementById('reg-documento').value = doc;
     if (nom && document.getElementById('reg-nombre')) document.getElementById('reg-nombre').value = nom;
 
-    if (doc) {
-      const fechaLocalHoy = getFechaColombia();
-      const ultimoIngresoLocal = localStorage.getItem('mh_ultimo_ingreso_fecha');
+    const fechaLocalHoy = getFechaColombia();
 
-      // Si ya ingresó hoy en este dispositivo en la sesión actual
-      if (sessionStorage.getItem('mh_registrado_hoy') === '1' && ultimoIngresoLocal === fechaLocalHoy) {
+    if (doc) {
+      const ultimoIngresoLocal = localStorage.getItem('mh_ultimo_ingreso_fecha');
+      const ultimoDocLocal = normalizarDocumento(localStorage.getItem('mh_usuario_documento'));
+
+      // 1. Verificación local rápida: si ya registró su ingreso de hoy en este dispositivo
+      if (ultimoIngresoLocal === fechaLocalHoy && ultimoDocLocal === doc) {
         overlay.classList.add('hidden');
         overlay.style.display = 'none';
+        // Sincronizar racha en segundo plano
+        consultarEstadoDiaServidor(doc).then(estado => {
+          if (estado && typeof estado.racha_actual === 'number') {
+            state.streak = estado.racha_actual;
+            if (state.streak > (state.bestStreak || 0)) state.bestStreak = state.streak;
+            updateHeaderStreak();
+            renderTracking();
+          }
+        }).catch(() => {});
         return;
       }
 
-      // Consultar en la base de datos el estado de ingreso de hoy
+      // 2. Consultar en la base de datos el estado de ingreso de hoy (por si ingresó desde otro dispositivo)
       try {
         const estado = await consultarEstadoDiaServidor(doc);
         if (estado && estado.existe) {
@@ -2769,9 +2780,9 @@ function diferenciaDiasYYYYMMDD(f1, f2) {
           }
 
           if (estado.ya_ingreso_hoy) {
-            // Ya registró su ingreso de hoy: ocultar overlay y mantener racha
-            sessionStorage.setItem('mh_registrado_hoy', '1');
+            // Ya registró su ingreso de hoy en la base de datos: ocultar overlay y mantener racha
             localStorage.setItem('mh_ultimo_ingreso_fecha', estado.fecha_colombia || fechaLocalHoy);
+            localStorage.setItem('mh_usuario_documento', doc);
             overlay.classList.add('hidden');
             setTimeout(() => {
               overlay.style.display = 'none';
@@ -2913,6 +2924,31 @@ async function registrarUsuario() {
 
   if (!valido) return;
 
+  // Verificación rápida en localStorage: si ya ingresó hoy con este mismo documento en este dispositivo
+  const fechaHoyLocal = getFechaColombia();
+  const ultimoIngresoLocal = localStorage.getItem('mh_ultimo_ingreso_fecha');
+  const ultimoDocLocal = normalizarDocumento(localStorage.getItem('mh_usuario_documento'));
+
+  if (ultimoIngresoLocal === fechaHoyLocal && ultimoDocLocal === documento) {
+    const rachaActual = state.streak || parseInt(localStorage.getItem('mh_racha_actual')) || 1;
+    if (avisoRacha) {
+      avisoRacha.innerHTML = `
+        <strong>⚠️ Ya registraste tu ingreso de hoy. ¡Vuelve mañana para continuar con tu racha!</strong>
+        <br>
+        <div class="badge-racha">🔥 Tu racha actual: ${rachaActual} día(s) consecutivos</div>
+      `;
+      avisoRacha.style.display = 'block';
+    }
+    showToast(`⚠️ Ya registraste tu ingreso de hoy. Racha actual: ${rachaActual} días.`, 'normal');
+    if (btnTexto) btnTexto.textContent = 'Continuar a la aplicación';
+    if (btnIniciar) {
+      btnIniciar.disabled = false;
+      btnIniciar.onclick = function() { cerrarOverlayRegistro(); };
+    }
+    setTimeout(() => { cerrarOverlayRegistro(); }, 2200);
+    return;
+  }
+
   // Ocultar aviso anterior si existía
   if (avisoRacha) {
     avisoRacha.style.display = 'none';
@@ -2957,6 +2993,7 @@ async function registrarUsuario() {
       localStorage.setItem('mh_usuario_nombre', nombre);
       localStorage.setItem('mh_usuario_documento', documento);
       localStorage.setItem('mh_usuario_correo', documento);
+      localStorage.setItem('mh_racha_actual', rachaActual);
       localStorage.setItem('mh_ultimo_ingreso_fecha', resultado.fecha_colombia || getFechaColombia());
       sessionStorage.setItem('mh_registrado_hoy', '1');
 
@@ -3006,6 +3043,7 @@ async function registrarUsuario() {
       localStorage.setItem('mh_usuario_nombre', nombre);
       localStorage.setItem('mh_usuario_documento', documento);
       localStorage.setItem('mh_usuario_correo', documento);
+      localStorage.setItem('mh_racha_actual', nuevaRacha);
       localStorage.setItem('mh_ultimo_ingreso_fecha', resultado.fecha_colombia || getFechaColombia());
       sessionStorage.setItem('mh_registrado_hoy', '1');
 
@@ -3063,8 +3101,17 @@ async function registrarIngresoClienteSupabase(documento, nombre) {
       p_nombre: nombre,
       p_fecha_colombia: fechaColombia
     });
-    if (!rpcErr && rpcData) return rpcData;
-  } catch (e) {}
+    if (!rpcErr && rpcData) {
+      if (rpcData.success) {
+        guardarRegistroSupabase(nombre, docNormalizado);
+      }
+      return rpcData;
+    } else if (rpcErr) {
+      console.warn('RPC falló:', rpcErr.message);
+    }
+  } catch (e) {
+    console.warn('Error RPC:', e);
+  }
 
   // 2. Probar tabla 'ingresos_diarios'
   try {
@@ -3104,7 +3151,7 @@ async function registrarIngresoClienteSupabase(documento, nombre) {
         }]);
 
       if (insErr) {
-        // Bloqueo por restricción de unicidad ante peticiones simultáneas
+        console.warn('Error al insertar en ingresos_diarios:', insErr.message);
         if (insErr.message && (insErr.message.includes('duplicate') || insErr.code === '23505' || insErr.message.includes('uq_ingreso_documento_fecha'))) {
           return {
             success: false,
@@ -3125,7 +3172,9 @@ async function registrarIngresoClienteSupabase(documento, nombre) {
         };
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Error en ingresos_diarios:', e);
+  }
 
   // 3. Fallback a tabla 'resultados_actividades'
   try {
@@ -3174,7 +3223,9 @@ async function registrarIngresoClienteSupabase(documento, nombre) {
       racha: nuevaRacha,
       mensaje: '¡Bienvenido/a! Ingreso del día registrado con éxito.'
     };
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Error en resultados_actividades:', e);
+  }
 
   return {
     success: true,
