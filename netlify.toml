@@ -1,5 +1,16 @@
 [build]
   publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/registrar-ingreso"
+  to = "/.netlify/functions/registrar-ingreso"
+  status = 200
+
+[[redirects]]
+  from = "/api/consultar-racha"
+  to = "/.netlify/functions/consultar-racha"
+  status = 200
 
 [[redirects]]
   from = "/admin"

@@ -1,2 +1,4 @@
-/admin    /admin.html    200
-/admin/   /admin.html    200
+/api/registrar-ingreso    /.netlify/functions/registrar-ingreso    200
+/api/consultar-racha      /.netlify/functions/consultar-racha      200
+/admin                    /admin.html                               200
+/admin/*                  /admin.html                               200

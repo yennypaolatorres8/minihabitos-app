@@ -791,6 +791,7 @@
             <tr>
               <th>Nombre</th>
               <th>Número de Documento</th>
+              <th>Racha Actual</th>
               <th>Actividades Completadas</th>
               <th>Puntos Logrados</th>
               <th>Fecha de Registro</th>
@@ -798,7 +799,7 @@
           </thead>
           <tbody id="tbody-usuarios">
             <tr>
-              <td colspan="5" class="empty-state">
+              <td colspan="6" class="empty-state">
                 <span class="empty-icon">⏳</span>
                 <h3>Cargando usuarios...</h3>
               </td>
@@ -831,6 +832,7 @@
     let supabaseClient = null;
     let rawActividades = [];
     let rawUsuarios = [];
+    let rawIngresosDiarios = [];
     let tabActual = 'actividades';
 
     // --- ALTERNAR VISIBILIDAD DE CONTRASEÑA ---
@@ -924,11 +926,25 @@
     // --- CARGA DE DATOS DESDE SUPABASE ---
     async function cargarTodo() {
       mostrarToast('Actualizando datos desde Supabase...', '');
-      await Promise.all([cargarUsuarios(), cargarActividades()]);
+      await Promise.all([cargarUsuarios(), cargarActividades(), cargarIngresosDiarios()]);
       actualizarMetricas();
       poblarFiltroSecciones();
       renderizarTablas();
       mostrarToast('Datos sincronizados correctamente', 'success');
+    }
+
+    async function cargarIngresosDiarios() {
+      try {
+        let res = await supabaseClient
+          .from('ingresos_diarios')
+          .select('*')
+          .order('fecha_colombia', { ascending: false });
+        if (!res.error && res.data) {
+          rawIngresosDiarios = res.data;
+        }
+      } catch (err) {
+        rawIngresosDiarios = [];
+      }
     }
 
     let supabaseErrorDetalle = null;
@@ -1092,7 +1108,7 @@
       if (usuariosFiltrados.length === 0) {
         tbodyUsuarios.innerHTML = `
           <tr>
-            <td colspan="5" class="empty-state">
+            <td colspan="6" class="empty-state">
               <span class="empty-icon">👥</span>
               <h3>No hay usuarios registrados</h3>
               <p>Las personas que ingresen sus datos en la app aparecerán aquí.</p>
@@ -1103,10 +1119,25 @@
         tbodyUsuarios.innerHTML = usuariosFiltrados.map(u => {
           const userActs = rawActividades.filter(a => a.correo_usuario === u.correo);
           const userScore = userActs.reduce((acc, curr) => acc + (parseInt(curr.puntaje) || 0), 0);
+          
+          // Buscar racha en ingresos diarios
+          const userIngresos = rawIngresosDiarios.filter(ing => ing.documento === u.correo);
+          let rachaTexto = '—';
+          if (userIngresos.length > 0) {
+            rachaTexto = `${userIngresos[0].racha_calculada || 1} día(s)`;
+          } else {
+            // Revisar si hay checkin o actividad
+            const checkins = userActs.filter(a => a.actividad === 'ingreso_diario' || a.actividad === 'checkin_diario');
+            if (checkins.length > 0) {
+              rachaTexto = `${checkins.length} día(s)`;
+            }
+          }
+
           return `
             <tr>
               <td><strong class="badge-user">${escaparHTML(u.nombre || 'Sin nombre')}</strong></td>
               <td>${escaparHTML(u.correo || '—')}</td>
+              <td><span class="badge badge-score">🔥 ${rachaTexto}</span></td>
               <td><span class="badge badge-section">${userActs.length} actividad(es)</span></td>
               <td><span class="badge badge-score">${userScore} pts</span></td>
               <td class="date-col">${formatearFecha(u.created_at)}</td>
@@ -1146,13 +1177,18 @@
         descargarArchivoCSV([encabezados, ...filas], `minihabitos_actividades_${new Date().toISOString().slice(0,10)}.csv`);
       } else {
         if (rawUsuarios.length === 0) return alert('No hay usuarios para exportar.');
-        const encabezados = ['ID', 'Nombre', 'Número de Documento', 'Fecha Registro'];
-        const filas = rawUsuarios.map(u => [
-          u.id || '',
-          `"${(u.nombre || '').replace(/"/g, '""')}"`,
-          `"${(u.correo || '').replace(/"/g, '""')}"`,
-          u.created_at || ''
-        ]);
+        const encabezados = ['ID', 'Nombre', 'Número de Documento', 'Racha Actual', 'Fecha Registro'];
+        const filas = rawUsuarios.map(u => {
+          const userIngresos = rawIngresosDiarios.filter(ing => ing.documento === u.correo);
+          const racha = userIngresos.length > 0 ? (userIngresos[0].racha_calculada || 1) : 0;
+          return [
+            u.id || '',
+            `"${(u.nombre || '').replace(/"/g, '""')}"`,
+            `"${(u.correo || '').replace(/"/g, '""')}"`,
+            racha,
+            u.created_at || ''
+          ];
+        });
         descargarArchivoCSV([encabezados, ...filas], `minihabitos_usuarios_${new Date().toISOString().slice(0,10)}.csv`);
       }
     }

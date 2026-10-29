@@ -1525,6 +1525,32 @@ footer {
 
 .btn-iniciar:active { transform: translateY(0); }
 
+.registro-aviso-racha {
+  margin: 12px 0 16px 0;
+  padding: 14px 16px;
+  background: rgba(232, 178, 61, 0.15);
+  border: 1.5px solid rgba(232, 178, 61, 0.45);
+  border-radius: 14px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.registro-aviso-racha .badge-racha {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 14px;
+  background: var(--navy);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
 .registro-privacy {
   text-align: center;
   font-size: 11px;
@@ -1611,9 +1637,11 @@ footer {
       <div class="registro-error-msg" id="error-documento">Por favor ingresa un número de documento válido.</div>
     </div>
 
+    <div id="registro-aviso-racha" class="registro-aviso-racha" style="display:none;"></div>
+
     <button class="btn-iniciar" id="btn-iniciar" onclick="registrarUsuario()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-      <span>Iniciar</span>
+      <svg id="btn-iniciar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      <span id="btn-iniciar-texto">Iniciar</span>
     </button>
 
     <p class="registro-privacy">🔒 Tus datos se usan únicamente para el seguimiento del programa MiniHábitos.</p>
@@ -2321,8 +2349,9 @@ function updateHabitDisplay() {
    STEP 5: SEGUIMIENTO
    ============================ */
 function checkTodayStatus() {
-  const today = new Date().toDateString();
+  const today = getFechaColombia();
   const btn = document.getElementById('btn-check');
+  if (!btn) return;
 
   if (state.lastCheckIn === today) {
     btn.textContent = '✅ ¡Cumplido hoy!';
@@ -2336,40 +2365,24 @@ function checkTodayStatus() {
 }
 
 function checkIn() {
-  const today = new Date().toDateString();
+  const today = getFechaColombia();
   if (state.lastCheckIn === today) return;
 
-  // Check if yesterday was done (for streak continuity)
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toDateString();
-
-  if (state.lastCheckIn === yStr) {
-    state.streak++;
-  } else if (state.lastCheckIn !== today) {
-    state.streak = 1;
-  }
-
-  if (state.streak > state.bestStreak) state.bestStreak = state.streak;
-
   state.lastCheckIn = today;
-  state.totalDays++;
-  state.points += 10 + state.streak; // bonus por racha
+  state.points = (state.points || 0) + 10 + (state.streak || 1);
 
-  // Add to history
   if (!state.checkHistory.includes(today)) {
     state.checkHistory.push(today);
   }
 
-  // Hito de 21 días: se desbloquea el certificado de constancia
-  const acabaDeCumplir21 = state.streak >= 21 && !state.certificateUnlocked;
+  const acabaDeCumplir21 = (state.streak || 0) >= 21 && !state.certificateUnlocked;
   if (acabaDeCumplir21) {
     state.certificateUnlocked = true;
     state.certificateDate = new Date().toISOString();
   }
 
   saveState();
-  guardarActividadSupabase('checkin_diario', new Date().toDateString(), 'seguimiento', 10 + state.streak);
+  guardarActividadSupabase('checkin_diario', today, 'seguimiento', 10 + (state.streak || 1));
   renderTracking();
   renderCalendar();
   updateHeaderStreak();
@@ -2381,7 +2394,7 @@ function checkIn() {
   if (acabaDeCumplir21) {
     showToast('🏅 ¡Cumplí 21 días! Tu certificado ya está listo para descargar', 'celebrate');
   } else {
-    showToast(`¡+${10 + state.streak} puntos! 🔥 Racha: ${state.streak} días`, 'celebrate');
+    showToast(`¡+${10 + (state.streak || 1)} puntos! 🔥 Racha: ${state.streak || 1} días`, 'celebrate');
   }
 }
 
@@ -2662,43 +2675,222 @@ function setupReveal() {
 document.addEventListener('DOMContentLoaded', init);
 
 /* ============================
-   REGISTRO DE USUARIO
+   CONTROL DE INGRESOS DIARIOS Y RACHAS
+   Zona Horaria: America/Bogota
    ============================ */
-(function() {
-  // Comprueba si el usuario ya se registró en esta sesión o anteriormente
-  function yaRegistrado() {
-    return sessionStorage.getItem('mh_registrado') === '1';
-  }
 
-  function mostrarOverlay() {
-    const overlay = document.getElementById('registro-overlay');
-    if (!overlay) return;
-    if (yaRegistrado()) {
-      overlay.classList.add('hidden');
-    } else {
-      const nom = localStorage.getItem('mh_usuario_nombre');
-      const doc = localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo');
-      if (nom && document.getElementById('reg-nombre')) document.getElementById('reg-nombre').value = nom;
-      if (doc && document.getElementById('reg-documento')) document.getElementById('reg-documento').value = doc;
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', mostrarOverlay);
-})();
-
-function validarDocumento(doc) {
-  const limpio = String(doc).trim().replace(/[\s.-]/g, '');
-  return /^[a-zA-Z0-9]{4,25}$/.test(limpio);
+function normalizarDocumento(doc) {
+  if (!doc) return '';
+  return String(doc).trim().replace(/[\s.,\-_]/g, '').toUpperCase();
 }
 
-function registrarUsuario() {
+function validarDocumento(doc) {
+  const limpio = normalizarDocumento(doc);
+  return limpio.length >= 4 && limpio.length <= 25;
+}
+
+// Retorna la fecha en formato YYYY-MM-DD según la zona horaria America/Bogota
+function getFechaColombia(date = new Date()) {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    return formatter.format(date);
+  } catch (e) {
+    // Respaldo manual en caso de que el navegador no soporte Intl con IANA
+    const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+    const bogotaDate = new Date(utc - (5 * 3600000)); // UTC-5 fijo
+    return bogotaDate.toISOString().slice(0, 10);
+  }
+}
+
+// Obtiene la fecha oficial del servidor sincronizada con America/Bogota
+async function obtenerFechaServidorColombia() {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/registros?limit=1`, {
+      method: 'HEAD',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    const dateHeader = resp.headers.get('date');
+    if (dateHeader) {
+      return getFechaColombia(new Date(dateHeader));
+    }
+  } catch (e) {}
+  return getFechaColombia(new Date());
+}
+
+// Diferencia exacta en días entre dos fechas 'YYYY-MM-DD'
+function diferenciaDiasYYYYMMDD(f1, f2) {
+  if (!f1 || !f2) return 999;
+  const [y1, m1, d1] = f1.split('-').map(Number);
+  const [y2, m2, d2] = f2.split('-').map(Number);
+  const t1 = Date.UTC(y1, m1 - 1, d1);
+  const t2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((t1 - t2) / (1000 * 60 * 60 * 24));
+}
+
+// Inicialización de Pantalla de Ingreso y Sincronización
+(function() {
+  async function comprobarEstadoIngreso() {
+    const overlay = document.getElementById('registro-overlay');
+    if (!overlay) return;
+
+    const doc = localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo');
+    const nom = localStorage.getItem('mh_usuario_nombre');
+    if (doc && document.getElementById('reg-documento')) document.getElementById('reg-documento').value = doc;
+    if (nom && document.getElementById('reg-nombre')) document.getElementById('reg-nombre').value = nom;
+
+    if (doc) {
+      const fechaLocalHoy = getFechaColombia();
+      const ultimoIngresoLocal = localStorage.getItem('mh_ultimo_ingreso_fecha');
+
+      // Si ya ingresó hoy en este dispositivo en la sesión actual
+      if (sessionStorage.getItem('mh_registrado_hoy') === '1' && ultimoIngresoLocal === fechaLocalHoy) {
+        overlay.classList.add('hidden');
+        overlay.style.display = 'none';
+        return;
+      }
+
+      // Consultar en la base de datos el estado de ingreso de hoy
+      try {
+        const estado = await consultarEstadoDiaServidor(doc);
+        if (estado && estado.existe) {
+          if (typeof estado.racha_actual === 'number') {
+            state.streak = estado.racha_actual;
+            if (state.streak > (state.bestStreak || 0)) state.bestStreak = state.streak;
+            updateHeaderStreak();
+            renderTracking();
+          }
+
+          if (estado.ya_ingreso_hoy) {
+            // Ya registró su ingreso de hoy: ocultar overlay y mantener racha
+            sessionStorage.setItem('mh_registrado_hoy', '1');
+            localStorage.setItem('mh_ultimo_ingreso_fecha', estado.fecha_colombia || fechaLocalHoy);
+            overlay.classList.add('hidden');
+            setTimeout(() => {
+              overlay.style.display = 'none';
+              overlay.style.pointerEvents = 'none';
+            }, 400);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Verificación inicial de ingreso:', err);
+      }
+    }
+
+    // Si aún no ha ingresado hoy, mostrar el formulario para su registro diario
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'flex';
+  }
+
+  document.addEventListener('DOMContentLoaded', comprobarEstadoIngreso);
+})();
+
+// Consultar racha y si ya ingresó hoy desde el servidor o Supabase
+async function consultarEstadoDiaServidor(documento) {
+  const docNormalizado = normalizarDocumento(documento);
+  if (!docNormalizado) return null;
+
+  // 1. Probar endpoint del backend
+  try {
+    const resp = await fetch(`/api/consultar-racha?documento=${encodeURIComponent(docNormalizado)}`);
+    if (resp.ok) {
+      return await resp.json();
+    }
+  } catch (e) {}
+
+  // 2. Probar directamente en Supabase si el endpoint de backend no responde
+  try {
+    const client = getSupabaseClient();
+    const fechaHoy = await obtenerFechaServidorColombia();
+
+    if (client) {
+      // Intentar RPC
+      try {
+        const { data: rpcData, error: rpcErr } = await client.rpc('consultar_racha_usuario', {
+          p_documento: docNormalizado,
+          p_fecha_colombia: fechaHoy
+        });
+        if (!rpcErr && rpcData) return rpcData;
+      } catch (e) {}
+
+      // Intentar consulta a tabla ingresos_diarios
+      const { data: ingRows, error: ingErr } = await client
+        .from('ingresos_diarios')
+        .select('*')
+        .eq('documento', docNormalizado)
+        .order('fecha_colombia', { ascending: false })
+        .limit(5);
+
+      if (!ingErr && ingRows && ingRows.length > 0) {
+        const ult = ingRows[0];
+        const yaIngresoHoy = ult.fecha_colombia === fechaHoy;
+        const diff = diferenciaDiasYYYYMMDD(fechaHoy, ult.fecha_colombia);
+        let rachaVigente = 0;
+        if (yaIngresoHoy || diff === 1) rachaVigente = ult.racha_calculada || 1;
+
+        return {
+          existe: true,
+          ya_ingreso_hoy: yaIngresoHoy,
+          racha_actual: rachaVigente,
+          ultimo_ingreso: ult.fecha_colombia,
+          fecha_colombia: fechaHoy
+        };
+      }
+
+      // Intentar fallback en resultados_actividades
+      const { data: actRows } = await client
+        .from('resultados_actividades')
+        .select('*')
+        .eq('correo_usuario', docNormalizado)
+        .eq('actividad', 'ingreso_diario')
+        .order('fecha', { ascending: false })
+        .limit(5);
+
+      if (actRows && actRows.length > 0) {
+        const ult = actRows[0];
+        const yaIngresoHoy = ult.respuesta === fechaHoy;
+        const diff = diferenciaDiasYYYYMMDD(fechaHoy, ult.respuesta);
+        let rachaVigente = 0;
+        if (yaIngresoHoy || diff === 1) rachaVigente = parseInt(ult.puntaje) || 1;
+
+        return {
+          existe: true,
+          ya_ingreso_hoy: yaIngresoHoy,
+          racha_actual: rachaVigente,
+          ultimo_ingreso: ult.respuesta,
+          fecha_colombia: fechaHoy
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Error al consultar estado en Supabase:', e);
+  }
+
+  return { existe: false, ya_ingreso_hoy: false, racha_actual: 0 };
+}
+
+// Función principal de registro de usuario / ingreso diario
+async function registrarUsuario() {
   const nombreInput = document.getElementById('reg-nombre');
   const docInput = document.getElementById('reg-documento');
   const errorNombre = document.getElementById('error-nombre');
   const errorDocumento = document.getElementById('error-documento');
+  const avisoRacha = document.getElementById('registro-aviso-racha');
+  const btnIniciar = document.getElementById('btn-iniciar');
+  const btnTexto = document.getElementById('btn-iniciar-texto');
 
   const nombre = (nombreInput ? nombreInput.value : '').trim();
-  const documento = (docInput ? docInput.value : '').trim();
+  const rawDocumento = (docInput ? docInput.value : '').trim();
+  const documento = normalizarDocumento(rawDocumento);
+
   let valido = true;
 
   // Validar nombre
@@ -2721,38 +2913,276 @@ function registrarUsuario() {
 
   if (!valido) return;
 
-  // 1. Guardar de inmediato en storage local
-  try {
-    localStorage.setItem('mh_usuario_nombre', nombre);
-    localStorage.setItem('mh_usuario_documento', documento);
-    localStorage.setItem('mh_usuario_correo', documento);
-    sessionStorage.setItem('mh_registrado', '1');
-  } catch (e) {
-    console.warn('Storage warning:', e);
+  // Ocultar aviso anterior si existía
+  if (avisoRacha) {
+    avisoRacha.style.display = 'none';
+    avisoRacha.innerHTML = '';
   }
 
-  // 2. OCULTAR OVERLAY INMEDIATAMENTE
+  // Estado de carga en el botón
+  if (btnIniciar) btnIniciar.disabled = true;
+  if (btnTexto) btnTexto.textContent = 'Verificando ingreso...';
+
+  try {
+    let resultado = null;
+
+    // 1. Intentar registrar a través de la función backend de Netlify
+    try {
+      const resp = await fetch('/api/registrar-ingreso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documento, nombre })
+      });
+      if (resp.ok) {
+        resultado = await resp.json();
+      }
+    } catch (netErr) {
+      console.warn('API backend no disponible en este entorno, usando cliente Supabase:', netErr);
+    }
+
+    // 2. Si el backend no respondió, ejecutar con cliente Supabase directo
+    if (!resultado) {
+      resultado = await registrarIngresoClienteSupabase(documento, nombre);
+    }
+
+    // CASO A: DUPLICADO (Ya había ingresado hoy)
+    if (resultado && resultado.duplicado) {
+      const rachaActual = resultado.racha || state.streak || 1;
+      state.streak = rachaActual;
+      if (state.streak > (state.bestStreak || 0)) state.bestStreak = state.streak;
+      updateHeaderStreak();
+      renderTracking();
+
+      // Guardar sesión para no pedirlo de nuevo hoy en este navegador
+      localStorage.setItem('mh_usuario_nombre', nombre);
+      localStorage.setItem('mh_usuario_documento', documento);
+      localStorage.setItem('mh_usuario_correo', documento);
+      localStorage.setItem('mh_ultimo_ingreso_fecha', resultado.fecha_colombia || getFechaColombia());
+      sessionStorage.setItem('mh_registrado_hoy', '1');
+
+      // Mostrar mensaje claro según requerimiento
+      if (avisoRacha) {
+        avisoRacha.innerHTML = `
+          <strong>⚠️ ${resultado.mensaje || 'Ya registraste tu ingreso de hoy. ¡Vuelve mañana para continuar con tu racha!'}</strong>
+          <br>
+          <div class="badge-racha">🔥 Tu racha actual: ${rachaActual} día(s) consecutivos</div>
+        `;
+        avisoRacha.style.display = 'block';
+      }
+
+      showToast(`⚠️ Ya registraste tu ingreso de hoy. Racha actual: ${rachaActual} días.`, 'normal');
+
+      if (btnTexto) btnTexto.textContent = 'Continuar a la aplicación';
+      if (btnIniciar) {
+        btnIniciar.disabled = false;
+        btnIniciar.onclick = function() {
+          cerrarOverlayRegistro();
+        };
+      }
+
+      // Cerrar automáticamente tras 2 segundos si el usuario no presiona
+      setTimeout(() => {
+        cerrarOverlayRegistro();
+      }, 2200);
+      return;
+    }
+
+    // CASO B: INGRESO VÁLIDO EXITOSO
+    if (resultado && resultado.success) {
+      const nuevaRacha = resultado.racha || 1;
+      state.streak = nuevaRacha;
+      if (nuevaRacha > (state.bestStreak || 0)) state.bestStreak = nuevaRacha;
+      state.totalDays = (state.totalDays || 0) + 1;
+      state.points = (state.points || 0) + 10 + nuevaRacha;
+
+      saveState();
+      updateHeaderStreak();
+      renderTracking();
+      renderCalendar();
+      updateMotivation();
+      renderCertificate();
+
+      // Guardar en almacenamiento local
+      localStorage.setItem('mh_usuario_nombre', nombre);
+      localStorage.setItem('mh_usuario_documento', documento);
+      localStorage.setItem('mh_usuario_correo', documento);
+      localStorage.setItem('mh_ultimo_ingreso_fecha', resultado.fecha_colombia || getFechaColombia());
+      sessionStorage.setItem('mh_registrado_hoy', '1');
+
+      const primerNombre = nombre.split(' ')[0] || nombre;
+      showToast(`¡Bienvenido/a, ${primerNombre}! 🌱 Ingreso confirmado. 🔥 Racha: ${nuevaRacha} día(s)`, 'celebrate');
+
+      cerrarOverlayRegistro();
+      return;
+    }
+
+    // En caso de respuesta con error
+    showToast(resultado?.mensaje || 'No se pudo completar el ingreso.', 'error');
+  } catch (err) {
+    console.error('Error durante el ingreso:', err);
+    showToast('Ocurrió un error al registrar el ingreso. Inténtalo de nuevo.', 'error');
+  } finally {
+    if (btnIniciar && (!avisoRacha || avisoRacha.style.display === 'none')) {
+      btnIniciar.disabled = false;
+      if (btnTexto) btnTexto.textContent = 'Iniciar';
+    }
+  }
+}
+
+function cerrarOverlayRegistro() {
   const overlay = document.getElementById('registro-overlay');
   if (overlay) {
     overlay.classList.add('hidden');
     setTimeout(() => {
       overlay.style.display = 'none';
       overlay.style.pointerEvents = 'none';
-    }, 600);
+    }, 500);
+  }
+}
+
+// Registro directo en Supabase con verificación y cálculo de racha
+async function registrarIngresoClienteSupabase(documento, nombre) {
+  const docNormalizado = normalizarDocumento(documento);
+  const fechaColombia = await obtenerFechaServidorColombia();
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return {
+      success: true,
+      duplicado: false,
+      fecha_colombia: fechaColombia,
+      racha: 1,
+      mensaje: 'Ingreso registrado en modo local.'
+    };
   }
 
-  // 3. Guardar en Supabase en segundo plano sin interrumpir la experiencia
+  // 1. Probar función almacenada PostgreSQL (RPC)
   try {
-    guardarRegistroSupabase(nombre, documento);
-  } catch (e) {
-    console.warn('Supabase registro warning:', e);
-  }
-
-  // 4. Saludo de bienvenida
-  try {
-    const primerNombre = nombre.split(' ')[0] || nombre;
-    setTimeout(() => showToast('¡Bienvenido/a, ' + primerNombre + '! 🌱', 'celebrate'), 400);
+    const { data: rpcData, error: rpcErr } = await client.rpc('registrar_ingreso_diario', {
+      p_documento: docNormalizado,
+      p_nombre: nombre,
+      p_fecha_colombia: fechaColombia
+    });
+    if (!rpcErr && rpcData) return rpcData;
   } catch (e) {}
+
+  // 2. Probar tabla 'ingresos_diarios'
+  try {
+    const { data: previos, error: qErr } = await client
+      .from('ingresos_diarios')
+      .select('*')
+      .eq('documento', docNormalizado)
+      .order('fecha_colombia', { ascending: false })
+      .limit(10);
+
+    if (!qErr && previos) {
+      const yaHoy = previos.find(r => r.fecha_colombia === fechaColombia);
+      if (yaHoy) {
+        return {
+          success: false,
+          duplicado: true,
+          fecha_colombia: fechaColombia,
+          racha: yaHoy.racha_calculada || 1,
+          mensaje: 'Ya registraste tu ingreso de hoy. ¡Vuelve mañana para continuar con tu racha!'
+        };
+      }
+
+      let nuevaRacha = 1;
+      const ultimo = previos.find(r => r.fecha_colombia < fechaColombia);
+      if (ultimo) {
+        const diff = diferenciaDiasYYYYMMDD(fechaColombia, ultimo.fecha_colombia);
+        nuevaRacha = (diff === 1) ? ((ultimo.racha_calculada || 1) + 1) : 1;
+      }
+
+      const { error: insErr } = await client
+        .from('ingresos_diarios')
+        .insert([{
+          documento: docNormalizado,
+          nombre: nombre,
+          fecha_colombia: fechaColombia,
+          racha_calculada: nuevaRacha
+        }]);
+
+      if (insErr) {
+        // Bloqueo por restricción de unicidad ante peticiones simultáneas
+        if (insErr.message && (insErr.message.includes('duplicate') || insErr.code === '23505' || insErr.message.includes('uq_ingreso_documento_fecha'))) {
+          return {
+            success: false,
+            duplicado: true,
+            fecha_colombia: fechaColombia,
+            racha: nuevaRacha,
+            mensaje: 'Ya registraste tu ingreso de hoy. ¡Vuelve mañana para continuar con tu racha!'
+          };
+        }
+      } else {
+        guardarRegistroSupabase(nombre, docNormalizado);
+        return {
+          success: true,
+          duplicado: false,
+          fecha_colombia: fechaColombia,
+          racha: nuevaRacha,
+          mensaje: '¡Bienvenido/a! Ingreso del día registrado con éxito.'
+        };
+      }
+    }
+  } catch (e) {}
+
+  // 3. Fallback a tabla 'resultados_actividades'
+  try {
+    const { data: actRows } = await client
+      .from('resultados_actividades')
+      .select('*')
+      .eq('correo_usuario', docNormalizado)
+      .eq('actividad', 'ingreso_diario')
+      .order('fecha', { ascending: false })
+      .limit(10);
+
+    const rows = actRows || [];
+    const yaHoy = rows.find(r => r.respuesta === fechaColombia);
+    if (yaHoy) {
+      return {
+        success: false,
+        duplicado: true,
+        fecha_colombia: fechaColombia,
+        racha: parseInt(yaHoy.puntaje) || 1,
+        mensaje: 'Ya registraste tu ingreso de hoy. ¡Vuelve mañana para continuar con tu racha!'
+      };
+    }
+
+    let nuevaRacha = 1;
+    const ultimo = rows.find(r => r.respuesta < fechaColombia);
+    if (ultimo) {
+      const diff = diferenciaDiasYYYYMMDD(fechaColombia, ultimo.respuesta);
+      nuevaRacha = (diff === 1) ? ((parseInt(ultimo.puntaje) || 1) + 1) : 1;
+    }
+
+    await client.from('resultados_actividades').insert([{
+      correo_usuario: docNormalizado,
+      nombre_usuario: nombre,
+      actividad: 'ingreso_diario',
+      respuesta: fechaColombia,
+      seccion: 'ingreso',
+      puntaje: nuevaRacha
+    }]);
+
+    guardarRegistroSupabase(nombre, docNormalizado);
+
+    return {
+      success: true,
+      duplicado: false,
+      fecha_colombia: fechaColombia,
+      racha: nuevaRacha,
+      mensaje: '¡Bienvenido/a! Ingreso del día registrado con éxito.'
+    };
+  } catch (e) {}
+
+  return {
+    success: true,
+    duplicado: false,
+    fecha_colombia: fechaColombia,
+    racha: 1,
+    mensaje: 'Ingreso registrado correctamente.'
+  };
 }
 
 // Soporte para presionar 'Enter' en los inputs del formulario
@@ -2794,10 +3224,11 @@ async function guardarRegistroSupabase(nombre, documento) {
   try {
     const client = getSupabaseClient();
     if (!client) return;
+    const docNormalizado = normalizarDocumento(documento);
     const { error } = await client
       .from('registros')
       .upsert(
-        { nombre, correo: documento },
+        { nombre, correo: docNormalizado },
         { onConflict: 'correo', ignoreDuplicates: true }
       );
     if (error) console.warn('Supabase registro:', error.message);
@@ -2805,7 +3236,7 @@ async function guardarRegistroSupabase(nombre, documento) {
 }
 
 async function guardarActividadSupabase(actividad, respuesta, seccion, puntaje) {
-  const usuario = localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo') || 'anonimo';
+  const usuario = normalizarDocumento(localStorage.getItem('mh_usuario_documento') || localStorage.getItem('mh_usuario_correo') || 'anonimo');
   const nombre = localStorage.getItem('mh_usuario_nombre') || '';
   try {
     const client = getSupabaseClient();
